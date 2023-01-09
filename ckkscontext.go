@@ -37,7 +37,7 @@ func NewCKKSContext(params ckks.Parameters) *CKKSContext {
 	keyGenerator := ckks.NewKeyGenerator(params)
 	sk, pk := keyGenerator.GenKeyPair()
 	rlk := keyGenerator.GenRelinearizationKey(sk, 2)
-	// Create positive & Negative power of twos.
+	// Create positive & negative power of twos.
 	rots := make([]int, 0, 2*params.LogN())
 	for i := 1; i <= params.LogN(); i++ {
 		rots = append(rots, 1<<i, -(1 << i))

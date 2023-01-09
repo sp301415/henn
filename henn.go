@@ -29,7 +29,7 @@ func (nn *HENeuralNet) AddLayer(l layer) {
 
 // Infer executes the forward propagation, returning inferred value.
 // If this network starts with ConvLayer, input should be encoded with EncryptIm2Col.
-// Analogous to forward() in TenSEAL.
+// Analogous to forward() in TenSeal.
 func (nn *HENeuralNet) Infer(input *rlwe.Ciphertext) *rlwe.Ciphertext {
 	output := input.CopyNew()
 
