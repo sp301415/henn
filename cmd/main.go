@@ -19,12 +19,8 @@ func main() {
 	params, _ := ckks.NewParametersFromLiteral(ckks.PN12QP109)
 	ctx := henn.NewCKKSContext(params)
 
-	img := make2d[int](3, 3)
-	for i := 0; i < 9; i++ {
-		img[i/3][i%3] = i + 1
-	}
-	fmt.Println(img)
-	ct := ctx.EncryptIm2Col(img, 2, 1)
-	fmt.Println(ctx.DecryptInts(ct, 9))
+	ct := ctx.EncryptInts([]int{1, 2, 3, 4})
+	ctx.Evaluator.Rotate(ct, 1, ct)
+	fmt.Println(ctx.DecryptInts(ct, 4))
 
 }

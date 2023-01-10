@@ -32,14 +32,13 @@ type PublicKeySet struct {
 }
 
 // NewCKKSContext creates a new CKKSContext.
-// By default, relinearization key and rotation keys with positive and negative power-of-two rotations are generated.
+// By default, relinearization key and rotation keys with positive & negative power-of-two rotations are generated.
 func NewCKKSContext(params ckks.Parameters) *CKKSContext {
 	keyGenerator := ckks.NewKeyGenerator(params)
 	sk, pk := keyGenerator.GenKeyPair()
 	rlk := keyGenerator.GenRelinearizationKey(sk, 2)
-	// Create positive & negative power of twos.
-	rots := make([]int, 0, 2*params.LogN())
-	for i := 1; i <= params.LogN(); i++ {
+	rots := make([]int, 0, 2*params.LogSlots())
+	for i := 0; i <= params.LogSlots(); i++ {
 		rots = append(rots, 1<<i, -(1 << i))
 	}
 	rtks := keyGenerator.GenRotationKeysForRotations(rots, false, sk)
@@ -146,12 +145,12 @@ func (ctx *CKKSContext) EncryptIm2Col(img [][]int, kernelSize int, stride int) *
 		}
 	}
 
-	// Flatten by Vertical Scanning
+	// Flatten by vertical scanning
+	// NOTE: It's already vertically aligned after Im2Col,
+	// so we can just append everything
 	flattened := make([]int, 0, XX*YY)
-	for i := 0; i < YY; i++ {
-		for j := 0; j < XX; j++ {
-			flattened = append(flattened, encodedImg[j][i])
-		}
+	for _, row := range encodedImg {
+		flattened = append(flattened, row...)
 	}
 	return ctx.EncryptInts(flattened)
 }

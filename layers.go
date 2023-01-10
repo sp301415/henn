@@ -1,9 +1,12 @@
 package henn
 
-import "github.com/tuneinsight/lattigo/v4/rlwe"
+import (
+	"github.com/tuneinsight/lattigo/v4/ckks"
+	"github.com/tuneinsight/lattigo/v4/rlwe"
+)
 
-// layer is a dummy interface for Convolution, Linear, and Activation layers.
-type layer interface {
+// Layer is a dummy interface for Convolution, Linear, and Activation layers.
+type Layer interface {
 	isLayer()
 }
 
@@ -16,7 +19,7 @@ type ConvLayer struct {
 	Stride int
 }
 
-// isLayer implements layer interface.
+// isLayer implements Layer interface.
 func (ConvLayer) isLayer() {}
 
 // LinearLayer represents the linear layer.
@@ -25,7 +28,7 @@ type LinearLayer struct {
 	Bias    []float64
 }
 
-// isLayer implements layer interface.
+// isLayer implements Layer interface.
 func (LinearLayer) isLayer() {}
 
 // ActivationLayer represents the activation layer.
@@ -33,5 +36,34 @@ type ActivationLayer struct {
 	ActivationFn func(*rlwe.Ciphertext)
 }
 
-// isLayer implements layer interface.
+// isLayer implements Layer interface.
 func (ActivationLayer) isLayer() {}
+
+// isEncodedLayer implements EncodedLayer interface.
+func (ActivationLayer) isEncodedLayer() {}
+
+// EncodedLayer represents the encoded layers that can be directly used in HENeuralNets.
+type EncodedLayer interface {
+	isEncodedLayer()
+}
+
+// EncodedConvLayer represents the encoded convolution layer.
+type EncodedConvLayer struct {
+	Im2ColX int // Same as window size
+	Im2ColY int
+
+	Kernel *rlwe.Plaintext
+	Stride int
+}
+
+// isEncodedLayer implements EncodedLayer interface.
+func (EncodedConvLayer) isEncodedLayer() {}
+
+// EncodedLinearLayer represents the encoded linear layer.
+type EncodedLinearLayer struct {
+	Weights ckks.LinearTransform
+	Bias    *rlwe.Plaintext
+}
+
+// isEncodedLayer implements EncodedLayer interface.
+func (EncodedLinearLayer) isEncodedLayer() {}
