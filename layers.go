@@ -15,7 +15,8 @@ type ConvLayer struct {
 	InputX int
 	InputY int
 
-	Kernel [][]float64
+	Kernel [][][]float64
+	Bias   []float64
 	Stride int
 }
 
@@ -33,7 +34,7 @@ func (LinearLayer) isLayer() {}
 
 // ActivationLayer represents the activation layer.
 type ActivationLayer struct {
-	ActivationFn func(*rlwe.Ciphertext)
+	ActivationFn func(*HENeuralNet, *rlwe.Ciphertext)
 }
 
 // isLayer implements Layer interface.
@@ -49,10 +50,12 @@ type EncodedLayer interface {
 
 // EncodedConvLayer represents the encoded convolution layer.
 type EncodedConvLayer struct {
-	Im2ColX int // Same as window size
-	Im2ColY int
+	Im2ColX int // Same as kernel size
+	Im2ColY int // Same as repeats
+	mask    *rlwe.Plaintext
 
-	Kernel *rlwe.Plaintext
+	Kernel []*rlwe.Plaintext
+	Bias   []*rlwe.Plaintext
 	Stride int
 }
 

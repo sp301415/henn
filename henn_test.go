@@ -12,7 +12,7 @@ import (
 var ctx *CKKSContext
 
 func init() {
-	params, _ := ckks.NewParametersFromLiteral(ckks.PN12QP109)
+	params, _ := ckks.NewParametersFromLiteral(ckks.PN14QP438)
 	ctx = NewCKKSContext(params)
 }
 
@@ -60,7 +60,7 @@ func TestIm2Col(t *testing.T) {
 		// After vertical scanning:
 		// 1 3 2 4 5 7 6 8
 
-		img := [][]int{
+		img := [][]float64{
 			{1, 2, 3, 4},
 			{5, 6, 7, 8},
 		}
@@ -75,7 +75,7 @@ func TestIm2Col(t *testing.T) {
 	t.Run("3*3/2/1", func(t *testing.T) {
 		// This is from the official example of TenSeal.
 
-		img := [][]int{
+		img := [][]float64{
 			{1, 2, 3},
 			{4, 5, 6},
 			{7, 8, 9},
@@ -90,7 +90,7 @@ func TestIm2Col(t *testing.T) {
 }
 
 func TestConv(t *testing.T) {
-	img := [][]int{
+	img := [][]float64{
 		{1, 2, 3},
 		{4, 5, 6},
 		{7, 8, 9},
@@ -100,40 +100,47 @@ func TestConv(t *testing.T) {
 		{1, 1},
 	}
 	stride := 1
-
-	ct := ctx.EncryptIm2Col(img, len(kernel), stride)
-
-	nn := NewHENeuralNet(ctx.PublicKeySet())
-	nn.AddLayers(ConvLayer{
+	convLayer := ConvLayer{
 		InputX: len(img),
 		InputY: len(img[0]),
-		Kernel: kernel,
+		Kernel: [][][]float64{kernel, kernel},
+		Bias:   []float64{0, 1},
 		Stride: stride,
-	})
+	}
+
+	ct := ctx.EncryptIm2Col(img, len(kernel), stride)
+	ctx.GenRotationKeys(Rotations(ctx.Parameters, []Layer{convLayer}))
+
+	nn := NewHENeuralNet(ctx.PublicKeySet())
+	nn.AddLayers(convLayer)
 	ct = nn.Infer(ct)
 
-	pt := ctx.DecryptInts(ct, 4)
+	pt := ctx.DecryptInts(ct, 8)
 
-	if !reflect.DeepEqual(pt, []int{12, 16, 24, 28}) {
+	if !reflect.DeepEqual(pt, []int{12, 16, 24, 28, 13, 17, 25, 29}) {
 		t.Fail()
 	}
 }
 
 func TestLinear(t *testing.T) {
-	nn := NewHENeuralNet(ctx.PublicKeySet())
-	nn.AddLayers(LinearLayer{
+	linearLayer := LinearLayer{
 		Weights: [][]float64{
 			{1, 2},
-			{2, 3},
+			{3, 4},
+			{5, 6},
 		},
-		Bias: []float64{2, 0},
-	})
+		Bias: []float64{2, 0, 0},
+	}
+	ctx.GenRotationKeys(Rotations(ctx.Parameters, []Layer{linearLayer}))
+
+	nn := NewHENeuralNet(ctx.PublicKeySet())
+	nn.AddLayers(linearLayer)
 
 	ct := ctx.EncryptInts([]int{1, 1})
 	ct = nn.Infer(ct)
-	pt := ctx.DecryptInts(ct, 2)
+	pt := ctx.DecryptInts(ct, 3)
 
-	if !reflect.DeepEqual(pt, []int{5, 5}) {
+	if !reflect.DeepEqual(pt, []int{5, 7, 11}) {
 		t.Fail()
 	}
 }

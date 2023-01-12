@@ -32,17 +32,12 @@ type PublicKeySet struct {
 }
 
 // NewCKKSContext creates a new CKKSContext.
-// By default, relinearization key and rotation keys with positive & negative power-of-two rotations are generated.
+// This DOES NOT create rotation keys. Use GenRotationKeys instaed.
 func NewCKKSContext(params ckks.Parameters) *CKKSContext {
 	keyGenerator := ckks.NewKeyGenerator(params)
 	sk, pk := keyGenerator.GenKeyPair()
 	rlk := keyGenerator.GenRelinearizationKey(sk, 2)
-	rots := make([]int, 0, 2*params.LogSlots())
-	for i := 0; i <= params.LogSlots(); i++ {
-		rots = append(rots, 1<<i, -(1 << i))
-	}
-	rtks := keyGenerator.GenRotationKeysForRotations(rots, false, sk)
-	evk := rlwe.EvaluationKey{Rlk: rlk, Rtks: rtks}
+	evk := rlwe.EvaluationKey{Rlk: rlk}
 
 	encoder := ckks.NewEncoder(params)
 	encryptor := ckks.NewEncryptor(params, sk)
@@ -62,6 +57,13 @@ func NewCKKSContext(params ckks.Parameters) *CKKSContext {
 		SecretKey:     sk,
 		EvaluationKey: evk,
 	}
+}
+
+// GenRotationKeys creates rotation keys and stores them internally.
+func (ctx *CKKSContext) GenRotationKeys(rots []int) {
+	rtks := ctx.KeyGenerator.GenRotationKeysForRotations(rots, false, ctx.SecretKey)
+	ctx.EvaluationKey = rlwe.EvaluationKey{Rlk: ctx.EvaluationKey.Rlk, Rtks: rtks}
+	ctx.Evaluator = ckks.NewEvaluator(ctx.Parameters, ctx.EvaluationKey)
 }
 
 // PublicKeySet returns the PublicKeySet of this context.
@@ -114,7 +116,7 @@ func (ctx *CKKSContext) DecryptFloats(ct *rlwe.Ciphertext, len int) []float64 {
 // which enables convolution with kernels.
 //
 // Refer to TenSeal paper for more information.
-func (ctx *CKKSContext) EncryptIm2Col(img [][]int, kernelSize int, stride int) *rlwe.Ciphertext {
+func (ctx *CKKSContext) EncryptIm2Col(img [][]float64, kernelSize int, stride int) *rlwe.Ciphertext {
 	X := len(img)
 	Y := len(img[0])
 
@@ -125,9 +127,9 @@ func (ctx *CKKSContext) EncryptIm2Col(img [][]int, kernelSize int, stride int) *
 	XX := kernelSize * kernelSize
 	YY := ((X - kernelSize + stride) / stride) * ((Y - kernelSize + stride) / stride)
 
-	encodedImg := make([][]int, XX)
+	encodedImg := make([][]float64, XX)
 	for i := range encodedImg {
-		encodedImg[i] = make([]int, YY)
+		encodedImg[i] = make([]float64, YY)
 	}
 
 	// Im2Col
@@ -140,17 +142,16 @@ func (ctx *CKKSContext) EncryptIm2Col(img [][]int, kernelSize int, stride int) *
 					xx++
 				}
 			}
-			yy++
-			xx = 0
+			xx, yy = 0, yy+1
 		}
 	}
 
 	// Flatten by vertical scanning
 	// NOTE: It's already vertically aligned after Im2Col,
 	// so we can just append everything
-	flattened := make([]int, 0, XX*YY)
+	flattened := make([]float64, 0, XX*YY)
 	for _, row := range encodedImg {
 		flattened = append(flattened, row...)
 	}
-	return ctx.EncryptInts(flattened)
+	return ctx.EncryptFloats(flattened)
 }
