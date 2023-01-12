@@ -15,7 +15,7 @@ import (
 // using TenSeal tutorial.
 var DefaultLayers []henn.Layer
 
-// DefaultParams is parameter tailer maid from DefaultLayers.
+// DefaultParams is parameters optimized for model using DefaultLayers.
 var DefaultParams = ckks.ParametersLiteral{
 	LogN: 13,
 	Q: []uint64{

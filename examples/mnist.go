@@ -12,11 +12,10 @@ import (
 )
 
 func main() {
-	// This is a sample program to simulate MNIST inference using Homomorphic Encryption.
+	// This is a sample program to simulate server-client MNIST inference using Homomorphic Encryption.
 
 	// Choose parameters to share between client and server.
 	// Our model requires depth 6, so we have to choose large enough parameter.
-	// TODO: Create a more optimized parameter for this model
 	params, _ := ckks.NewParametersFromLiteral(hemnist.DefaultParams)
 
 	// Client creates CKKSContext.
