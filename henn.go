@@ -243,6 +243,7 @@ func (nn *HENeuralNet) EncodeLinearLayer(ll LinearLayer) EncodedLinearLayer {
 func (nn *HENeuralNet) linear(ll EncodedLinearLayer, ct *rlwe.Ciphertext) {
 	cts := []*rlwe.Ciphertext{ct}
 	nn.Evaluator.LinearTransform(ct, ll.Weights, cts)
+	nn.Evaluator.Rescale(ct, nn.Parameters.DefaultScale(), ct)
 	nn.Evaluator.Add(ct, ll.Bias, ct)
 }
 

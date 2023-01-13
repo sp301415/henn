@@ -41,6 +41,7 @@ func ReadAllTestCase(filepath string) []TestSet {
 		if err != nil {
 			panic(err)
 		}
+		row = row[1:]
 
 		image := make([][]float64, imageSize)
 		for i := 0; i < imageSize; i++ {
@@ -50,6 +51,7 @@ func ReadAllTestCase(filepath string) []TestSet {
 				if err != nil {
 					panic(err)
 				}
+				image[i][j] /= 255
 			}
 		}
 

@@ -49,3 +49,34 @@ func BenchmarkInference(b *testing.B) {
 		}
 	})
 }
+
+func TestInference(t *testing.T) {
+	params, _ := ckks.NewParametersFromLiteral(hemnist.DefaultParams)
+	ctx := henn.NewCKKSContext(params)
+
+	rots := henn.Rotations(params, hemnist.DefaultLayers)
+	ctx.GenRotationKeys(rots)
+
+	pks := ctx.PublicKeySet()
+	model := henn.NewHENeuralNet(pks)
+	model.AddLayers(hemnist.DefaultLayers...)
+
+	testSets := hemnist.ReadAllTestCase("mnist_test.csv")
+	N := 64
+	successes := 0
+	for i := 0; i < N; i++ {
+		testCase := testSets[i]
+		encImg := ctx.EncryptIm2Col(testCase.Image, 7, 3)
+
+		encOutput := model.Infer(encImg)
+
+		output := ctx.DecryptFloats(encOutput, 10)
+		pred := hemnist.ArgMax(output)
+
+		t.Logf("Prediction: %v, Label: %v, Success: %v\n", pred, testCase.Label, pred == testCase.Label)
+		if pred == testCase.Label {
+			successes++
+		}
+	}
+	t.Logf("Accuraccy: %v\n", float64(successes)/float64(N)*100)
+}
