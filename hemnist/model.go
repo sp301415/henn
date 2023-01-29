@@ -1,11 +1,8 @@
 package hemnist
 
 import (
-	"bytes"
 	_ "embed"
-	"encoding/csv"
 	"henn"
-	"strconv"
 
 	"github.com/tuneinsight/lattigo/v4/ckks"
 	"github.com/tuneinsight/lattigo/v4/rlwe"
@@ -28,59 +25,7 @@ var DefaultParams = ckks.ParametersLiteral{
 	DefaultScale: 1 << 22,
 }
 
-var (
-	//go:embed model/CW0.csv
-	cw0CSV []byte
-	//go:embed model/CW1.csv
-	cw1CSV []byte
-	//go:embed model/CW2.csv
-	cw2CSV []byte
-	//go:embed model/CW3.csv
-	cw3CSV []byte
-	//go:embed model/CB.csv
-	cbCSV []byte
-
-	//go:embed model/LW1.csv
-	lw1CSV []byte
-	//go:embed model/LB1.csv
-	lb1CSV []byte
-
-	//go:embed model/LW2.csv
-	lw2CSV []byte
-	//go:embed model/LB2.csv
-	lb2CSV []byte
-)
-
-func csvToMat(b []byte) [][]float64 {
-	csvRd := csv.NewReader(bytes.NewReader(b))
-	rows, _ := csvRd.ReadAll()
-
-	M := make([][]float64, len(rows))
-	for i, row := range rows {
-		M[i] = make([]float64, len(row))
-		for j, v := range row {
-			M[i][j], _ = strconv.ParseFloat(v, 64)
-		}
-	}
-
-	return M
-}
-
 func init() {
-	cw := [][][]float64{
-		csvToMat(cw0CSV),
-		csvToMat(cw1CSV),
-		csvToMat(cw2CSV),
-		csvToMat(cw3CSV),
-	}
-	cb := Flatten(csvToMat(cbCSV))
-
-	lw1 := csvToMat(lw1CSV)
-	lb1 := Flatten(csvToMat(lb1CSV))
-
-	lw2 := csvToMat(lw2CSV)
-	lb2 := Flatten(csvToMat(lb2CSV))
-
 	activationFn := func(model *henn.HENeuralNet, ct *rlwe.Ciphertext) {
 		model.Evaluator.MulRelin(ct, ct, ct)
 		model.Evaluator.Rescale(ct, model.Parameters.DefaultScale(), ct)
@@ -90,23 +35,23 @@ func init() {
 		henn.ConvLayer{
 			InputX: 28,
 			InputY: 28,
-			Kernel: cw,
-			Bias:   cb,
+			Kernel: [][][]float64{convWeight0, convWeight1, convWeight2, convWeight3},
+			Bias:   convBias,
 			Stride: 3,
 		},
 		henn.ActivationLayer{
 			ActivationFn: activationFn,
 		},
 		henn.LinearLayer{
-			Weights: lw1,
-			Bias:    lb1,
+			Weights: lin0Weight,
+			Bias:    lin0Bias,
 		},
 		henn.ActivationLayer{
 			ActivationFn: activationFn,
 		},
 		henn.LinearLayer{
-			Weights: lw2,
-			Bias:    lb2,
+			Weights: lin1Weight,
+			Bias:    lin1Bias,
 		},
 	}
 }

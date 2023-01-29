@@ -20,27 +20,26 @@ func main() {
 
 	// Client creates CKKSContext.
 	ctx := henn.NewCKKSContext(params)
+
+	// Server initializes the model using pre-trained layers.
+	model := henn.NewHENeuralNet(params, hemnist.DefaultLayers...)
+
 	// Using model information, we calculate the rotation indexes needed
 	// and create rotation keys.
-	rots := henn.Rotations(params, hemnist.DefaultLayers)
+	rots := model.Rotations()
 	ctx.GenRotationKeys(rots)
 
-	// Client sends public keysets to server.
-	// Server uses this to initializes the model.
-	pks := ctx.PublicKeySet()
-	model := henn.NewHENeuralNet(pks)
-	// Add pre-trained layers to model
-	model.AddLayers(hemnist.DefaultLayers...)
+	// Client sends evaluation keys to server.
+	// Server uses this to initialize the model.
+	evk := ctx.EvaluationKey
+	model.Initialize(evk)
 
 	// Client encrypts the image using Im2Col, and sends it to server.
 	f, err := os.Open("9.jpg")
 	if err != nil {
 		panic(err)
 	}
-	img, _, err := image.Decode(f)
-	if err != nil {
-		panic(err)
-	}
+	img, _, _ := image.Decode(f)
 
 	testCase := hemnist.NormalizeImage(img)
 	encImg := ctx.EncryptIm2Col(testCase, 7, 3) // Our model uses 7*7 Kernel with Stride 3.

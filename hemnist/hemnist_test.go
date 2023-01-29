@@ -19,10 +19,23 @@ func BenchmarkInference(b *testing.B) {
 		}
 	})
 
+	var model *henn.HENeuralNet
+	b.Run("GenNeuralNet", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			model = henn.NewHENeuralNet(params, hemnist.DefaultLayers...)
+		}
+	})
+
 	b.Run("GenRotationKeys", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			rots := henn.Rotations(params, hemnist.DefaultLayers)
+			rots := model.Rotations()
 			ctx.GenRotationKeys(rots)
+		}
+	})
+
+	b.Run("InitNeuralNet", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			model.Initialize(ctx.EvaluationKey)
 		}
 	})
 
@@ -31,15 +44,6 @@ func BenchmarkInference(b *testing.B) {
 	b.Run("EncryptIm2Col", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			encImg = ctx.EncryptIm2Col(testCase.Image, 7, 3)
-		}
-	})
-
-	pks := ctx.PublicKeySet()
-	var model *henn.HENeuralNet
-	b.Run("GenNeuralNet", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			model = henn.NewHENeuralNet(pks)
-			model.AddLayers(hemnist.DefaultLayers...)
 		}
 	})
 
@@ -53,13 +57,11 @@ func BenchmarkInference(b *testing.B) {
 func TestInference(t *testing.T) {
 	params, _ := ckks.NewParametersFromLiteral(hemnist.DefaultParams)
 	ctx := henn.NewCKKSContext(params)
+	model := henn.NewHENeuralNet(params, hemnist.DefaultLayers...)
 
-	rots := henn.Rotations(params, hemnist.DefaultLayers)
-	ctx.GenRotationKeys(rots)
+	ctx.GenRotationKeys(model.Rotations())
 
-	pks := ctx.PublicKeySet()
-	model := henn.NewHENeuralNet(pks)
-	model.AddLayers(hemnist.DefaultLayers...)
+	model.Initialize(ctx.EvaluationKey)
 
 	testSets := hemnist.ReadAllTestCase("mnist_test.csv")
 	N := 64

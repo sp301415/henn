@@ -108,13 +108,12 @@ func TestConv(t *testing.T) {
 		Stride: stride,
 	}
 
+	nn := NewHENeuralNet(ctx.Parameters, convLayer)
+	ctx.GenRotationKeys(nn.Rotations())
+	nn.Initialize(ctx.EvaluationKey)
+
 	ct := ctx.EncryptIm2Col(img, len(kernel), stride)
-	ctx.GenRotationKeys(Rotations(ctx.Parameters, []Layer{convLayer}))
-
-	nn := NewHENeuralNet(ctx.PublicKeySet())
-	nn.AddLayers(convLayer)
 	ct = nn.Infer(ct)
-
 	pt := ctx.DecryptInts(ct, 8)
 
 	if !reflect.DeepEqual(pt, []int{12, 16, 24, 28, 13, 17, 25, 29}) {
@@ -131,10 +130,10 @@ func TestLinear(t *testing.T) {
 		},
 		Bias: []float64{2, 0, 0},
 	}
-	ctx.GenRotationKeys(Rotations(ctx.Parameters, []Layer{linearLayer}))
 
-	nn := NewHENeuralNet(ctx.PublicKeySet())
-	nn.AddLayers(linearLayer)
+	nn := NewHENeuralNet(ctx.Parameters, linearLayer)
+	ctx.GenRotationKeys(nn.Rotations())
+	nn.Initialize(ctx.EvaluationKey)
 
 	ct := ctx.EncryptInts([]int{1, 1})
 	ct = nn.Infer(ct)

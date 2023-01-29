@@ -23,14 +23,6 @@ type CKKSContext struct {
 	EvaluationKey rlwe.EvaluationKey
 }
 
-// PublicKeySet is a structure containing public information about certain CKKSContext.
-// Use this to initialize HENeuralNet.
-type PublicKeySet struct {
-	Parameters    ckks.Parameters
-	PublicKey     *rlwe.PublicKey
-	EvaluationKey rlwe.EvaluationKey
-}
-
 // NewCKKSContext creates a new CKKSContext.
 // This DOES NOT create rotation keys. Use GenRotationKeys instaed.
 func NewCKKSContext(params ckks.Parameters) *CKKSContext {
@@ -64,15 +56,6 @@ func (ctx *CKKSContext) GenRotationKeys(rots []int) {
 	rtks := ctx.KeyGenerator.GenRotationKeysForRotations(rots, false, ctx.SecretKey)
 	ctx.EvaluationKey = rlwe.EvaluationKey{Rlk: ctx.EvaluationKey.Rlk, Rtks: rtks}
 	ctx.Evaluator = ckks.NewEvaluator(ctx.Parameters, ctx.EvaluationKey)
-}
-
-// PublicKeySet returns the PublicKeySet of this context.
-func (ctx *CKKSContext) PublicKeySet() *PublicKeySet {
-	return &PublicKeySet{
-		Parameters:    ctx.Parameters,
-		PublicKey:     ctx.PublicKey,
-		EvaluationKey: ctx.EvaluationKey,
-	}
 }
 
 // EncryptInts encodes and encrypts slices of int to ckks ciphertext.

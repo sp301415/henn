@@ -7,31 +7,41 @@ import (
 
 // HENeuralNet represents the Neural Network with Homomorphic Encryption Operations.
 type HENeuralNet struct {
-	Parameters   ckks.Parameters
-	PublicKeySet *PublicKeySet
-	Encoder      ckks.Encoder
-	Evaluator    ckks.Evaluator
-	Layers       []EncodedLayer
+	Parameters    ckks.Parameters
+	EvaluationKey rlwe.EvaluationKey
+	Encoder       ckks.Encoder
+	Evaluator     ckks.Evaluator
+	Layers        []EncodedLayer
 }
 
-// Rotations returns the number of rotations that are needed to infer from given layers.
-//
-// TODO: This is terribly slow for now, we have to find a way to do this without encoding layers.
-func Rotations(params ckks.Parameters, layers []Layer) []int {
-	// Create an empty Neural Net, with only necessary information for encoding layers
+// NewHENeuralNet returns the empty HENeuralNet with Encoder initialized.
+// To use this NN, you should call initialize with PubicKeySet.
+func NewHENeuralNet(params ckks.Parameters, layers ...Layer) *HENeuralNet {
 	nn := &HENeuralNet{
 		Parameters: params,
 		Encoder:    ckks.NewEncoder(params),
+		Evaluator:  nil,
 	}
+	nn.AddLayers(layers...)
 
+	return nn
+}
+
+// Initialize intializes this neural network using sender's public evaluation keys.
+func (nn *HENeuralNet) Initialize(evk rlwe.EvaluationKey) {
+	nn.EvaluationKey = evk
+	nn.Evaluator = ckks.NewEvaluator(nn.Parameters, evk)
+}
+
+// Rotations returns the number of rotations that are needed to infer from this neural network.
+func (nn *HENeuralNet) Rotations() []int {
 	rotSet := make(map[int]struct{})
-	for _, l := range layers {
-		switch l := l.(type) {
-		case ConvLayer:
-			el := nn.EncodeConvLayer(l)
 
-			batchSize := el.Im2ColY
-			N := el.Im2ColX
+	for _, l := range nn.Layers {
+		switch l := l.(type) {
+		case EncodedConvLayer:
+			batchSize := l.Im2ColY
+			N := l.Im2ColX
 
 			// Keys needed for InnerSum
 			// Taken from InnerSum method in Lattigo
@@ -45,12 +55,12 @@ func Rotations(params ckks.Parameters, layers []Layer) []int {
 			}
 
 			// Keys needed for masking & addition
-			for i := 0; i < len(el.Kernel); i++ {
+			for i := 0; i < len(l.Kernel); i++ {
 				rotSet[-i*batchSize] = struct{}{}
 			}
-		case LinearLayer:
-			el := nn.EncodeLinearLayer(l)
-			for _, r := range el.Weights.Rotations() {
+
+		case EncodedLinearLayer:
+			for _, r := range l.Weights.Rotations() {
 				rotSet[r] = struct{}{}
 			}
 		}
@@ -61,15 +71,6 @@ func Rotations(params ckks.Parameters, layers []Layer) []int {
 		rot = append(rot, k)
 	}
 	return rot
-}
-
-// NewHENeuralNet returns the empty HENeuralNet with Encoder, Evaluator initialized.
-func NewHENeuralNet(pk *PublicKeySet) *HENeuralNet {
-	return &HENeuralNet{
-		Parameters: pk.Parameters,
-		Encoder:    ckks.NewEncoder(pk.Parameters),
-		Evaluator:  ckks.NewEvaluator(pk.Parameters, pk.EvaluationKey),
-	}
 }
 
 // AddLayers adds layers to this HENeuralNet.
@@ -89,43 +90,29 @@ func (nn *HENeuralNet) AddLayers(layers ...Layer) {
 // Infer executes the forward propagation, returning inferred value.
 // If this network starts with ConvLayer, input should be encoded with EncryptIm2Col.
 // Analogous to forward() in TenSeal.
-func (nn *HENeuralNet) Infer(input *rlwe.Ciphertext) *rlwe.Ciphertext {
-	output := input.CopyNew()
+func (nn *HENeuralNet) Infer(ctIn *rlwe.Ciphertext) *rlwe.Ciphertext {
+	if nn.Evaluator == nil {
+		panic("model not initialized")
+	}
+
+	ctOut := ctIn.CopyNew()
 
 	for _, l := range nn.Layers {
 		switch l := l.(type) {
 		case EncodedConvLayer:
-			nn.conv(l, output)
+			nn.conv(l, ctOut)
 		case EncodedLinearLayer:
-			nn.linear(l, output)
+			nn.linear(l, ctOut)
 		case ActivationLayer:
-			nn.activate(l, output)
+			nn.activate(l, ctOut)
 		}
 	}
 
-	return output
-}
-
-// isMatrix returns if given 2D slice can be interpreted as a matrix
-// i.e. All rows are in same length.
-func isMatrix[T any](s [][]T) bool {
-	N := len(s[0])
-	for _, row := range s {
-		if len(row) != N {
-			return false
-		}
-	}
-	return true
+	return ctOut
 }
 
 // EncodeConvLayer encodes ConvLayer to EncodedConvLayer.
 func (nn *HENeuralNet) EncodeConvLayer(cl ConvLayer) EncodedConvLayer {
-	for _, k := range cl.Kernel {
-		if !isMatrix(k) {
-			panic("kernel not matrix")
-		}
-	}
-
 	if len(cl.Kernel) != len(cl.Bias) {
 		panic("dimension mismatch between kernel and bias")
 	}
@@ -178,9 +165,6 @@ func (nn *HENeuralNet) EncodeConvLayer(cl ConvLayer) EncodedConvLayer {
 
 // conv executes ConvLayer in-place.
 func (nn *HENeuralNet) conv(cl EncodedConvLayer, ct *rlwe.Ciphertext) {
-	// We only have power of two rotation keys,
-	// so we make rotation indexes ourselves.
-
 	ctConv := rlwe.NewCiphertext(nn.Parameters.Parameters, ct.Degree(), ct.Level())
 	ctTemp := rlwe.NewCiphertext(nn.Parameters.Parameters, ct.Degree(), ct.Level())
 	for i := range cl.Kernel {
@@ -204,10 +188,6 @@ func (nn *HENeuralNet) conv(cl EncodedConvLayer, ct *rlwe.Ciphertext) {
 
 // EncodeLinearLayer encodes LinearLayer to EncodedLinearLayer.
 func (nn *HENeuralNet) EncodeLinearLayer(ll LinearLayer) EncodedLinearLayer {
-	if !isMatrix(ll.Weights) {
-		panic("weights not matrix")
-	}
-
 	N := len(ll.Weights)
 	M := len(ll.Weights[0])
 
@@ -241,8 +221,7 @@ func (nn *HENeuralNet) EncodeLinearLayer(ll LinearLayer) EncodedLinearLayer {
 
 // linear executes LinearLayer in-place.
 func (nn *HENeuralNet) linear(ll EncodedLinearLayer, ct *rlwe.Ciphertext) {
-	cts := []*rlwe.Ciphertext{ct}
-	nn.Evaluator.LinearTransform(ct, ll.Weights, cts)
+	nn.Evaluator.LinearTransform(ct, ll.Weights, []*rlwe.Ciphertext{ct})
 	nn.Evaluator.Rescale(ct, nn.Parameters.DefaultScale(), ct)
 	nn.Evaluator.Add(ct, ll.Bias, ct)
 }
